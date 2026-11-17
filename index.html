@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Video Pay Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one column ledger. Balance card on top, two entry forms side by side, then history and monthly totals. */
+:root{
+  --bg:#f3f5f8; --surface:#ffffff; --surface-2:#eef1f6; --line:#d9dee8;
+  --fg:#16202f; --muted:#5d6878; --accent:#2f4fd8; --accent-fg:#ffffff;
+  --good:#127a4a; --good-bg:#e3f4ea; --bad:#b4302b; --bad-bg:#fbe7e5;
+  --font-display:"Sora",system-ui,sans-serif; --font-body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-num:"IBM Plex Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f141c; --surface:#171e29; --surface-2:#1e2735; --line:#2c3748;
+  --fg:#e7ecf4; --muted:#97a3b6; --accent:#8099ff; --accent-fg:#0d1324;
+  --good:#5fd39a; --good-bg:#14301f; --bad:#ff8a80; --bad-bg:#3a1a19; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f141c; --surface:#171e29; --surface-2:#1e2735; --line:#2c3748;
+  --fg:#e7ecf4; --muted:#97a3b6; --accent:#8099ff; --accent-fg:#0d1324;
+  --good:#5fd39a; --good-bg:#14301f; --bad:#ff8a80; --bad-bg:#3a1a19; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:15px;line-height:1.5}
+.wrap{max-width:980px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px;display:grid;gap:18px}
+h1,h2{font-family:var(--font-display);margin:0;text-wrap:balance}
+h1{font-size:1.35rem;font-weight:700}
+h2{font-size:1.02rem;font-weight:600}
+.num{font-family:var(--font-num);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;gap:12px;min-width:0}
+.status{border-radius:14px;padding:20px;display:grid;gap:14px;border:1px solid var(--line);background:var(--surface)}
+.status .pill{display:inline-block;font-size:.72rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:99px}
+.status.good .pill{background:var(--good-bg);color:var(--good)}
+.status.bad .pill{background:var(--bad-bg);color:var(--bad)}
+.status.even .pill{background:var(--surface-2);color:var(--muted)}
+.big{font-family:var(--font-display);font-size:clamp(2rem,6vw,3rem);font-weight:700;line-height:1.05}
+.status.good .big{color:var(--good)} .status.bad .big{color:var(--bad)}
+.sub{font-size:1rem}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.stat{background:var(--surface-2);border-radius:10px;padding:10px 12px;display:grid;gap:2px}
+.stat .lbl{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.stat .val{font-size:1.05rem}
+.forms{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row>*{flex:1 1 120px;min-width:0}
+label{display:grid;gap:4px;font-size:.78rem;color:var(--muted);font-weight:500}
+input,select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;min-width:0}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);background:var(--surface-2);color:var(--fg);padding:8px 14px;font-weight:500}
+button.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-weight:600}
+button.small{padding:4px 10px;font-size:.82rem}
+button.link{background:none;border:none;color:var(--accent);padding:4px 6px}
+button:disabled{opacity:.5;cursor:not-allowed}
+.stepper{display:flex;gap:6px}
+.stepper input{text-align:center}
+.stepper button{flex:0 0 40px;padding:8px 0;font-size:1.1rem}
+.seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{flex:1;border:none;border-radius:0;background:var(--bg)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg)}
+.preview{font-size:.75rem;color:var(--muted);margin-top:-4px;min-height:1.2em}
+form.panel{display:flex;flex-direction:column;gap:12px}
+form.panel .actions{margin-top:auto;display:flex;gap:10px}
+form.panel .actions>*{flex:1}
+input,select{height:40px;padding-block:0}
+.stepper button{height:40px;padding:0;font-size:1rem}
+.seg{height:40px}
+.seg button{padding:0;height:100%}
+input:disabled{opacity:.45}
+[hidden]{display:none!important}
+.static{height:40px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 12px;border-radius:8px;background:var(--surface-2);border:1px solid var(--line)}
+.static b{color:var(--fg);font-size:.95rem;font-weight:500}
+.static span{font-size:.75rem;color:var(--muted)}
+.wrap{gap:16px}
+.forms{gap:16px}
+.panel{padding:18px;gap:14px}
+form.panel{gap:14px}
+.row{gap:12px}
+label{gap:6px}
+.preview{margin-top:-2px}
+#settingsBox[open]>summary{margin-bottom:2px}
+#settingsBox .items{gap:10px}
+.item-head{margin-bottom:-2px}
+#settingsBox>p{margin:0}
+#saveSettingsBtn{width:100%}
+select{appearance:none;-webkit-appearance:none;padding-right:34px;background-color:var(--bg);
+  background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+  background-position:calc(100% - 20px) 50%,calc(100% - 15px) 50%;background-size:5px 5px;background-repeat:no-repeat}
+.preview b{font-weight:400;font-family:var(--font-num)}
+.banner{padding:10px 14px;border-radius:10px;background:var(--surface-2);font-size:.9rem}
+.banner.err{background:var(--bad-bg);color:var(--bad)}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tabs button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.month{display:grid;gap:4px}
+.month-h{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:10px 2px 4px;border-bottom:1px solid var(--line)}
+.entry{display:grid;grid-template-columns:62px 1fr auto;gap:10px;align-items:center;padding:8px 2px;border-bottom:1px solid var(--line)}
+.entry:last-child{border-bottom:none}
+.entry .d{font-size:.8rem;color:var(--muted)}
+.entry .what{min-width:0}
+.entry .what .t{font-weight:500}
+.entry .what .n{font-size:.8rem;color:var(--muted);overflow-wrap:anywhere}
+.entry .amt{text-align:right;display:grid;gap:2px;justify-items:end}
+.amt .plus{color:var(--good)} .amt .minus{color:var(--fg)}
+.amt .bal{font-size:.75rem;color:var(--muted)}
+.acts{display:flex;gap:2px;justify-content:flex-end}
+.confirm{display:flex;gap:6px;align-items:center;font-size:.8rem;color:var(--bad);flex-wrap:wrap;justify-content:flex-end}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{text-align:right;padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.items{display:grid;gap:8px}
+.item-row{display:grid;grid-template-columns:minmax(0,1fr) 130px 110px;gap:8px;align-items:center}
+.item-row>button{height:40px;padding:0}
+.item-head{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:-4px}
+.item-text{font-size:.88rem;color:var(--muted);padding-left:2px}
+.item-req{font-size:.8rem;color:var(--muted);text-align:center}
+@media (max-width:480px){.item-row{grid-template-columns:minmax(0,1fr) 90px 84px}}
+details>summary{cursor:pointer;font-family:var(--font-display);font-weight:600;list-style:none;display:flex;justify-content:space-between;align-items:center}
+details>summary::-webkit-details-marker{display:none}
+details>summary::after{content:"Show";font-family:var(--font-body);font-size:.8rem;color:var(--accent);font-weight:500}
+details[open]>summary::after{content:"Hide"}
+.empty{padding:18px;text-align:center;color:var(--muted);font-size:.9rem}
+.editing{outline:2px dashed var(--accent);outline-offset:3px}
+@media (max-width:480px){.entry{grid-template-columns:52px 1fr}.entry .amt{grid-column:2;justify-items:start;text-align:left}}
+@media (prefers-reduced-motion:no-preference){button{transition:background .15s,opacity .15s}}
+body{margin:0;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body.busy{cursor:progress}
+body.busy button[type="submit"]{opacity:.6;pointer-events:none}
+.lock{min-height:100vh;display:grid;place-items:center;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.lock form{width:100%;max-width:340px;display:grid;gap:14px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:24px}
+.lock input{text-align:center;font-family:var(--font-num);font-size:1.4rem;letter-spacing:.3em;height:52px}
+.lock button{height:44px}
+.lock p{margin:0;font-size:.85rem;color:var(--muted);min-height:1.3em}
+.top-actions{display:flex;gap:8px}
+</style>
+</head>
+<body>
+
+<section class="lock" id="lock" hidden>
+  <form id="lockForm" autocomplete="off">
+    <h1>Video Pay Ledger</h1>
+    <label>Enter PIN<input type="password" id="pinInput" inputmode="numeric" maxlength="12" autocomplete="current-password"></label>
+    <button type="submit" class="primary" id="lockBtn">Open ledger</button>
+    <p id="lockMsg"></p>
+  </form>
+</section>
+
+<div class="wrap" id="app" hidden>
+  <div class="top">
+    <h1>Video Pay Ledger</h1>
+    <div class="top-actions">
+      <button id="copyBtn" class="small" type="button">Copy summary for boss</button>
+      <button id="lockOutBtn" class="small" type="button">Lock</button>
+    </div>
+  </div>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <section id="status" class="status even" aria-live="polite">
+    <div><span class="pill" id="statusPill">Loading</span></div>
+    <div class="big num" id="statusBig">—</div>
+    <div class="stats">
+      <div class="stat"><span class="lbl">Work billed</span><span class="val num" id="stBilled">$0.00</span></div>
+      <div class="stat"><span class="lbl">Paid to you</span><span class="val num" id="stPaid">$0.00</span></div>
+      <div class="stat"><span class="lbl">Videos done</span><span class="val num" id="stVideos">0</span></div>
+      <div class="stat"><span class="lbl">Balance</span><span class="val num" id="stBalance">$0.00</span></div>
+    </div>
+  </section>
+
+  <div class="forms">
+    <form id="workForm" class="panel" autocomplete="off">
+      <h2 id="workTitle">Log work</h2>
+      <div class="row">
+        <label>Date<input type="date" id="wDate" required></label>
+        <label>What<select id="wItem"></select></label>
+      </div>
+      <div class="row" id="wQtyRow">
+        <label>Quantity
+          <span class="stepper">
+            <button type="button" id="wMinus" aria-label="One less">−</button>
+            <input type="number" id="wQty" min="1" step="1" value="1" inputmode="numeric">
+            <button type="button" id="wPlus" aria-label="One more">+</button>
+          </span>
+        </label>
+        <label>Total<span class="static"><b class="num" id="wTotal">$0.00</b><span class="num" id="wEach"></span></span></label>
+      </div>
+      <div class="row" id="wOtherRow" hidden>
+        <label>Charge name<input type="text" id="wLabel" placeholder="e.g. Envato subscription"></label>
+        <label>Amount (USD)<input type="number" id="wRate" min="0" step="0.01" inputmode="decimal" placeholder="0.00"></label>
+      </div>
+      <label>Note (optional)<input type="text" id="wNote" placeholder="e.g. Client name, video titles"></label>
+      <div class="preview" id="wPreview"></div>
+      <div class="actions">
+        <button type="submit" class="primary" id="wSubmit">Add work</button>
+        <button type="button" id="wCancel" hidden>Cancel edit</button>
+      </div>
+    </form>
+
+    <form id="payForm" class="panel" autocomplete="off">
+      <h2 id="payTitle">Log payment received</h2>
+      <div class="row">
+        <label>Date<input type="date" id="pDate" required></label>
+        <label>Amount received (USD)<input type="number" id="pAmount" min="0" step="0.01" inputmode="decimal" placeholder="0.00" required></label>
+      </div>
+      <label>Note (optional)<input type="text" id="pNote" placeholder="e.g. PayPal, advance for December"></label>
+      <div class="preview" id="pPreview"></div>
+      <div class="actions">
+        <button type="submit" class="primary" id="pSubmit">Add payment</button>
+        <button type="button" id="pCancel" hidden>Cancel edit</button>
+      </div>
+    </form>
+  </div>
+
+  <section class="panel">
+    <div class="top">
+      <h2>History</h2>
+      <div class="tabs" role="group" aria-label="Filter history">
+        <button type="button" class="small" data-f="all" aria-pressed="true">All</button>
+        <button type="button" class="small" data-f="work" aria-pressed="false">Work</button>
+        <button type="button" class="small" data-f="payment" aria-pressed="false">Payments</button>
+      </div>
+    </div>
+    <div id="history"><div class="empty">No entries yet. Log today's videos above to start.</div></div>
+  </section>
+
+  <section class="panel">
+    <h2>By month</h2>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Month</th><th>Videos</th><th>Other work</th><th>Billed</th><th>Paid</th><th>Balance after</th></tr></thead>
+      <tbody id="months"><tr><td colspan="6" class="muted" style="text-align:left">Monthly totals appear once you have entries.</td></tr></tbody>
+    </table></div>
+  </section>
+
+  <details class="panel" id="settingsBox">
+    <summary>Rates and settings</summary>
+    <p class="muted" style="margin:0;font-size:.88rem">Changing a rate only affects new entries. Entries you already logged keep the rate they were saved with. The video rate is used to count videos prepaid or unpaid.</p>
+    <div class="items">
+      <div class="item-row item-head"><span>Item</span><span>Rate (USD)</span><span></span></div>
+      <div class="items" id="itemList"></div>
+      <div class="item-row">
+        <input type="text" id="newItemLabel" placeholder="New item, e.g. Shorts cut-down" aria-label="New item name">
+        <input type="number" id="newItemRate" min="0" step="0.01" placeholder="0.00" aria-label="New item rate in USD">
+        <button type="button" id="addItemBtn">Add item</button>
+      </div>
+    </div>
+    <button type="button" id="saveSettingsBtn" class="primary" style="height:40px">Save settings</button>
+  </details>
+</div>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const today = () => new Date().toLocaleDateString('en-CA');
+  const toCents = v => Math.round((parseFloat(v)||0)*100);
+  const usd = c => (c<0?'−':'') + '$' + (Math.abs(c)/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const php = c => '₱' + (c/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const esc = s => String(s??'').replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+  const fmtDate = d => { const [y,m,dd]=d.split('-').map(Number); return new Date(y,m-1,dd).toLocaleDateString('en-US',{month:'short',day:'numeric'}); };
+  const fmtMonth = k => { const [y,m]=k.split('-').map(Number); return new Date(y,m-1,1).toLocaleDateString('en-US',{month:'long',year:'numeric'}); };
+  const plural = (n,w) => n + ' ' + w + (n===1?'':'s');
+
+  const DEFAULT_SETTINGS = { phpPerUsd: 58, items: [
+    {key:'video',label:'Video',rateCents:4000},
+    {key:'thumbnail',label:'Thumbnail',rateCents:300},
+    {key:'gdrive',label:'Google Drive',rateCents:1750}
+  ]};
+  let settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+  let entries = [];
+  let filter = 'all';
+  let editingWork = null, editingPay = null;
+  let payCurrency = 'USD';
+  let confirmId = null;
+  let readOnly = false;
+
+  function banner(msg, err){ const b=$('banner'); if(!msg){b.hidden=true;return;} b.textContent=msg; b.className='banner'+(err?' err':''); b.hidden=false; }
+
+  // ---------- math ----------
+  function videoRate(){ const v=settings.items.find(i=>i.key==='video'); return v?v.rateCents:4000; }
+  function sorted(){ return entries.slice().sort((a,b)=> a.date===b.date ? (a.createdAt||0)-(b.createdAt||0) : (a.date<b.date?-1:1)); }
+  function totals(){
+    let billed=0, paid=0, videos=0, phpRecv=0;
+    for(const e of entries){
+      if(e.kind==='work'){ billed+=e.amountCents||0; if(e.itemKey==='video') videos+=e.qty||0; }
+      else { paid+=e.creditCents||0; if(e.currency==='PHP') phpRecv+=e.amountMinor||0; }
+    }
+    return {billed, paid, videos, phpRecv, balance: paid-billed};
+  }
+  function describeBalance(bal){
+    const vr=videoRate();
+    if(bal===0) return {cls:'even',pill:'All settled',big:'0 videos',sub:'Balance $0.00'};
+    const abs=Math.abs(bal), n=Math.floor(abs/vr), rem=abs-n*vr;
+    if(bal>0) return {cls:'good',pill:'Prepaid',big:plural(n,'video')+' prepaid',sub:'Balance '+usd(bal)};
+    return {cls:'bad',pill:'Unpaid',big:plural(Math.ceil(abs/vr),'video')+' unpaid',sub:'Balance '+usd(bal)};
+  }
+
+  // ---------- render ----------
+  function render(){
+    const t=totals(), d=describeBalance(t.balance);
+    const st=$('status'); st.className='status '+d.cls;
+    $('statusPill').textContent=d.pill; $('statusBig').textContent=d.big; $('stBalance').textContent=usd(t.balance); $('stBalance').style.color=t.balance<0?'var(--bad)':t.balance>0?'var(--good)':'';
+    $('stBilled').textContent=usd(t.billed); $('stPaid').textContent=usd(t.paid);
+    $('stVideos').textContent=t.videos.toLocaleString('en-US');    renderHistory(); renderMonths(); renderItemSelect(); renderItems();
+  }
+
+  function renderHistory(){
+    const list=sorted(); let run=0; const bal={};
+    for(const e of list){ run += e.kind==='work' ? -(e.amountCents||0) : (e.creditCents||0); bal[e.id]=run; }
+    const shown=list.filter(e=>filter==='all'||e.kind===filter).reverse();
+    const box=$('history');
+    if(!shown.length){ box.innerHTML='<div class="empty">'+(entries.length?'Nothing in this filter yet.':'No entries yet. Log today\'s videos above to start.')+'</div>'; return; }
+    const groups={};
+    for(const e of shown){ const k=e.date.slice(0,7); (groups[k]=groups[k]||[]).push(e); }
+    let html='';
+    for(const k of Object.keys(groups)){
+      html+='<div class="month"><div class="month-h"><span>'+fmtMonth(k)+'</span></div>';
+      for(const e of groups[k]){
+        let title, note=e.note||'', amt;
+        if(e.kind==='work'){
+          title = e.qty>1 || e.itemKey==='video' || e.itemKey==='thumbnail' ? plural(e.qty, e.label) : e.label;
+          const rateTxt = e.qty>1 ? e.qty+' × '+usd(e.rateCents) : '';
+          note=[rateTxt,note].filter(Boolean).join(' · ');
+          amt='<span class="num minus">'+usd(e.amountCents)+'</span>';
+        } else {
+          title='Payment received';
+          amt='<span class="num plus">+'+usd(e.creditCents)+'</span>';
+        }
+        const acts = readOnly ? '' : (confirmId===e.id
+          ? '<div class="confirm">Delete this entry? <button type="button" class="small" data-act="del-yes" data-id="'+e.id+'">Delete</button><button type="button" class="small" data-act="del-no">Keep</button></div>'
+          : '<div class="acts"><button type="button" class="link small" data-act="edit" data-id="'+e.id+'">Edit</button><button type="button" class="link small" data-act="del" data-id="'+e.id+'">Delete</button></div>');
+        html+='<div class="entry"><span class="d num">'+fmtDate(e.date)+'</span><div class="what"><div class="t">'+esc(title)+'</div>'+(note?'<div class="n">'+esc(note)+'</div>':'')+'</div>'+
+          '<div class="amt">'+amt+'<span class="bal num">Balance '+usd(bal[e.id])+'</span>'+acts+'</div></div>';
+      }
+      html+='</div>';
+    }
+    box.innerHTML=html;
+  }
+
+  function renderMonths(){
+    const list=sorted(); const m={}; const order=[]; let run=0;
+    for(const e of list){
+      const k=e.date.slice(0,7);
+      if(!m[k]){ m[k]={videos:0,other:0,billed:0,paid:0,after:0}; order.push(k); }
+      if(e.kind==='work'){ m[k].billed+=e.amountCents; if(e.itemKey==='video') m[k].videos+=e.qty; else m[k].other+=e.amountCents; run-=e.amountCents; }
+      else { m[k].paid+=e.creditCents; run+=e.creditCents; }
+      m[k].after=run;
+    }
+    const tb=$('months');
+    if(!order.length){ tb.innerHTML='<tr><td colspan="6" class="muted" style="text-align:left">Monthly totals appear once you have entries.</td></tr>'; return; }
+    tb.innerHTML=order.reverse().map(k=>{const r=m[k];return '<tr><td>'+fmtMonth(k)+'</td><td class="num">'+r.videos+'</td><td class="num">'+usd(r.other)+'</td><td class="num">'+usd(r.billed)+'</td><td class="num">'+usd(r.paid)+'</td><td class="num" style="color:var('+(r.after<0?'--bad':'--good')+')">'+usd(r.after)+'</td></tr>';}).join('');
+  }
+
+  function renderItemSelect(){
+    const sel=$('wItem'), cur=sel.value;
+    sel.innerHTML=settings.items.map(i=>'<option value="'+esc(i.key)+'">'+esc(i.label)+'</option>').join('')+'<option value="__other">Other charge…</option>';
+    if([...sel.options].some(o=>o.value===cur)) sel.value=cur;
+  }
+
+  function renderItems(){
+    if(document.activeElement && $('itemList').contains(document.activeElement)) return;
+    $('itemList').innerHTML=settings.items.map((i,idx)=>
+      '<div class="item-row"><input type="text" id="itLabel'+idx+'" value="'+esc(i.label)+'" aria-label="Item name"'+(i.key==='video'?' title="Used to count videos"':'')+'>'+
+      '<input type="number" id="itRate'+idx+'" min="0" step="0.01" value="'+(i.rateCents/100).toFixed(2)+'" aria-label="Rate in USD">'+
+      (i.key==='video'?'<span class="item-req">Required</span>':'<button type="button" data-rm="'+idx+'">Remove</button>')+'</div>').join('');
+  }
+
+  // ---------- work form ----------
+  function onItemChange(){
+    const other=$('wItem').value==='__other';
+    $('wOtherRow').hidden=!other; $('wQtyRow').hidden=other;
+    if(other && !editingWork) $('wRate').value='';
+    workPreview();
+  }
+  // Rate comes from settings; an edited entry keeps the rate it was saved with.
+  function workRate(){
+    const key=$('wItem').value;
+    if(key==='__other') return toCents($('wRate').value);
+    if(editingWork && editingWork.itemKey===key) return editingWork.rateCents;
+    const it=settings.items.find(i=>i.key===key); return it?it.rateCents:0;
+  }
+  function workQty(){ return $('wItem').value==='__other' ? 1 : Math.max(1,parseInt($('wQty').value)||1); }
+  function workPreview(){
+    const q=workQty(), r=workRate();
+    $('wTotal').textContent=usd(q*r); $('wEach').textContent=usd(r)+' each';
+    $('wPreview').innerHTML='Balance becomes <b>'+usd(totals().balance-q*r+(editingWork?editingWork.amountCents:0))+'</b>';
+  }
+  function resetWork(){
+    editingWork=null; $('workForm').classList.remove('editing'); $('workTitle').textContent='Log work';
+    $('wSubmit').textContent='Add work'; $('wCancel').hidden=true;
+    $('wQty').value=1; $('wNote').value=''; $('wLabel').value=''; $('wDate').value=today();
+    $('wItem').value='video'; onItemChange();
+  }
+  $('wItem').addEventListener('change',onItemChange);
+  $('wQty').addEventListener('input',workPreview); $('wRate').addEventListener('input',workPreview);
+  $('wMinus').onclick=()=>{ $('wQty').value=Math.max(1,(parseInt($('wQty').value)||1)-1); workPreview(); };
+  $('wPlus').onclick=()=>{ $('wQty').value=(parseInt($('wQty').value)||0)+1; workPreview(); };
+  $('wCancel').onclick=resetWork;
+  $('workForm').addEventListener('submit', async ev=>{
+    ev.preventDefault(); if(!db) return banner('Saving needs this page open on claude.ai while signed in.',true);
+    const key=$('wItem').value, q=workQty(), r=workRate();
+    let label;
+    if(key==='__other'){ label=$('wLabel').value.trim(); if(!label){ $('wLabel').focus(); return banner('Give the charge a name, like "Envato subscription".',true); } }
+    else label=(settings.items.find(i=>i.key===key)||{}).label||key;
+    if(!r) { $('wRate').focus(); return banner('Enter the amount in USD.',true); }
+    const doc={kind:'work',date:$('wDate').value||today(),itemKey:key==='__other'?'other':key,label,qty:q,rateCents:r,amountCents:q*r,note:$('wNote').value.trim(),createdAt:editingWork?editingWork.createdAt:Date.now()};
+    await save(editingWork?editingWork.id:null, doc, editingWork?'Work updated.':'Added '+plural(q,label)+'.');
+    resetWork();
+  });
+
+  // ---------- payment form ----------
+  function creditCents(){ return toCents($('pAmount').value); }
+  function payPreview(){
+    const c=creditCents(), base=totals().balance-(editingPay?editingPay.creditCents:0);
+    $('pPreview').innerHTML='Balance becomes <b>'+usd(base+c)+'</b>';
+  }
+  function resetPay(){
+    editingPay=null; $('payForm').classList.remove('editing'); $('payTitle').textContent='Log payment received';
+    $('pSubmit').textContent='Add payment'; $('pCancel').hidden=true;
+    $('pAmount').value=''; $('pNote').value=''; $('pDate').value=today(); payPreview();
+  }
+  $('pAmount').addEventListener('input',payPreview);
+  $('pCancel').onclick=resetPay;
+  $('payForm').addEventListener('submit', async ev=>{
+    ev.preventDefault(); if(!db) return banner('Saving needs this page open on claude.ai while signed in.',true);
+    const cr=creditCents();
+    if(!cr) { $('pAmount').focus(); return banner('Enter the amount you received in USD.',true); }
+    const doc={kind:'payment',date:$('pDate').value||today(),currency:'USD',amountMinor:cr,creditCents:cr,note:$('pNote').value.trim(),createdAt:editingPay?editingPay.createdAt:Date.now()};
+    await save(editingPay?editingPay.id:null, doc, editingPay?'Payment updated.':'Payment of '+usd(cr)+' added.');
+    resetPay();
+  });
+
+  // ---------- history actions ----------
+  $('history').addEventListener('click', async ev=>{
+    const b=ev.target.closest('button[data-act]'); if(!b) return;
+    const id=b.dataset.id, act=b.dataset.act, e=entries.find(x=>x.id===id);
+    if(act==='del'){ confirmId=id; renderHistory(); }
+    else if(act==='del-no'){ confirmId=null; renderHistory(); }
+    else if(act==='del-yes'){ confirmId=null; try{ await db.collection('entries').doc(id).delete(); banner('Entry deleted.'); }catch(err){ banner('Could not delete: '+(err.message||err.code),true);} }
+    else if(act==='edit' && e){
+      if(e.kind==='work'){
+        resetWork(); editingWork=e; $('workForm').classList.add('editing'); $('workTitle').textContent='Edit work'; $('wSubmit').textContent='Save changes'; $('wCancel').hidden=false;
+        $('wDate').value=e.date; const known=settings.items.some(i=>i.key===e.itemKey);
+        $('wItem').value = known ? e.itemKey : '__other';
+        if(!known){ $('wLabel').value=e.label; $('wRate').value=(e.amountCents/100).toFixed(2); }
+        $('wQty').value=e.qty; $('wNote').value=e.note||''; onItemChange();
+        $('workForm').scrollIntoView({behavior:'smooth',block:'center'});
+      } else {
+        resetPay(); editingPay=e; $('payForm').classList.add('editing'); $('payTitle').textContent='Edit payment'; $('pSubmit').textContent='Save changes'; $('pCancel').hidden=false;
+        $('pDate').value=e.date; $('pAmount').value=(e.creditCents/100).toFixed(2);
+        $('pNote').value=e.note||''; payPreview();
+        $('payForm').scrollIntoView({behavior:'smooth',block:'center'});
+      }
+    }
+  });
+  document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{ filter=b.dataset.f; document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute('aria-pressed',x===b)); renderHistory(); });
+
+  // ---------- settings ----------
+  $('itemList').addEventListener('click', ev=>{ const b=ev.target.closest('button[data-rm]'); if(!b) return; collectItems(); settings.items.splice(+b.dataset.rm,1); renderItemsForce(); });
+  function renderItemsForce(){ document.activeElement && document.activeElement.blur(); renderItems(); }
+  function collectItems(){ settings.items.forEach((i,idx)=>{ const l=$('itLabel'+idx), r=$('itRate'+idx); if(l&&l.value.trim()) i.label=l.value.trim(); if(r) i.rateCents=toCents(r.value); }); }
+  $('addItemBtn').onclick=()=>{
+    const label=$('newItemLabel').value.trim(); if(!label) return $('newItemLabel').focus();
+    collectItems(); let key=label.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'item';
+    while(settings.items.some(i=>i.key===key)) key+='-2';
+    settings.items.push({key,label,rateCents:toCents($('newItemRate').value)}); $('newItemLabel').value=''; $('newItemRate').value=''; renderItemsForce(); renderItemSelect();
+    banner('Added "'+label+'". Press Save settings to keep it.');
+  };
+  $('saveSettingsBtn').onclick=async()=>{
+    if(!db) return banner('Saving needs this page open on claude.ai while signed in.',true);
+    collectItems();
+    try{ await db.doc('settings/main').set(JSON.parse(JSON.stringify(settings))); banner('Settings saved.'); render(); onItemChange(); }
+    catch(err){ banner('Could not save settings: '+(err.message||err.code),true); }
+  };
+
+  // ---------- copy summary ----------
+  $('copyBtn').onclick=async()=>{
+    const t=totals(), vr=videoRate(), nowKey=today().slice(0,7);
+    let mv=0, mBilled=0, mPaid=0; const other={};
+    for(const e of entries){ if(e.date.slice(0,7)!==nowKey) continue;
+      if(e.kind==='work'){ mBilled+=e.amountCents; if(e.itemKey==='video') mv+=e.qty; else other[e.label]=(other[e.label]||0)+e.amountCents; }
+      else mPaid+=e.creditCents; }
+    const lines=['Update as of '+new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})];
+    lines.push('', fmtMonth(nowKey)+': '+plural(mv,'video')+' ('+usd(mv*vr)+')');
+    for(const k in other) lines.push(k+': '+usd(other[k]));
+    lines.push('Billed this month: '+usd(mBilled), 'Paid this month: '+usd(mPaid), '');
+    if(t.balance>0) lines.push('Prepaid balance left: '+usd(t.balance)+' (covers '+plural(Math.floor(t.balance/vr),'more video')+')');
+    else if(t.balance<0) lines.push('Unpaid balance: '+usd(-t.balance));
+    else lines.push('All settled, nothing owed.');
+    const text=lines.join('\n');
+    try{ await navigator.clipboard.writeText(text); banner('Summary copied. Paste it into your message to your boss.'); }
+    catch(e){ banner(text); const r=document.createRange(); r.selectNodeContents($('banner')); const s=getSelection(); s.removeAllRanges(); s.addRange(r); }
+  };
+
+  // ---------- storage ----------
+  // Data lives in the "Video Pay Ledger data" Google Sheet, reached through its Apps Script web app.
+  const API='https://script.google.com/macros/s/AKfycbz-0IghvyLWX4xMaPThEUMnW3d8xXIJyVD7dfI1UxVx1_T_-xc1tDCCkMK5lJri86T4TA/exec';
+  const PIN_KEY='payLedgerPin';
+  let pin=''; try{ pin=localStorage.getItem(PIN_KEY)||''; }catch(_){}
+  let busy=0;
+  function setBusy(d){ busy+=d; document.body.classList.toggle('busy',busy>0); }
+
+  function apply(state){
+    entries=(state.entries||[]).map(e=> e.kind==='payment'
+      ? {...e, currency:'USD', creditCents:e.amountCents, amountMinor:e.amountCents}
+      : e);
+    const items=state.settings&&state.settings.items&&state.settings.items.length ? state.settings.items : DEFAULT_SETTINGS.items;
+    settings={items:items.map(i=>({...i}))};
+    render(); if(!editingWork && $('wItem').value!=='__other') onItemChange(); workPreview(); payPreview();
+  }
+
+  async function api(payload, quiet){
+    if(!quiet) setBusy(1);
+    try{
+      const res=await fetch(API,{method:'POST',body:JSON.stringify({...payload,pin})});
+      const data=await res.json();
+      if(data.error==='pin'){ lock('That PIN is not right. Try again.'); throw new Error('pin'); }
+      if(data.error) throw new Error(data.error);
+      apply(data); return data;
+    } finally { if(!quiet) setBusy(-1); }
+  }
+
+  async function save(id, doc, okMsg){
+    const entry={...doc, id:id||('e'+Date.now().toString(36)+Math.random().toString(36).slice(2,7))};
+    if(entry.kind==='payment') entry.amountCents=entry.creditCents;
+    try{ await api({action:'save',entry}); banner(okMsg); }
+    catch(err){ if(err.message!=='pin') banner('Could not save: '+err.message+'. Check your connection and try again.',true); }
+  }
+
+  const db={
+    collection:()=>({doc:id=>({delete:()=>api({action:'delete',id})})}),
+    doc:()=>({set:s=>api({action:'settings',settings:s})})
+  };
+
+  function lock(msg){
+    try{ localStorage.removeItem(PIN_KEY); }catch(_){}
+    pin=''; $('lockMsg').textContent=msg||''; $('lock').hidden=false; $('app').hidden=true; $('pinInput').value=''; $('pinInput').focus();
+  }
+  async function unlock(p){
+    pin=p; $('lockBtn').disabled=true; $('lockMsg').textContent='Checking…';
+    try{
+      await api({action:'list'}, true);
+      try{ localStorage.setItem(PIN_KEY,pin); }catch(_){}
+      $('lock').hidden=true; $('app').hidden=false; banner('');
+    }catch(err){ if(err.message!=='pin') $('lockMsg').textContent='Could not reach the ledger. Check your connection and try again.'; }
+    finally{ $('lockBtn').disabled=false; }
+  }
+  $('lockForm').addEventListener('submit',e=>{ e.preventDefault(); const p=$('pinInput').value.trim(); if(p) unlock(p); });
+  $('lockOutBtn').onclick=()=>lock('');
+
+  // Pick up your boss's changes: refresh when the tab comes back and every minute while open.
+  async function refresh(){ if(!pin || document.hidden || busy) return; try{ await api({action:'list'}, true); }catch(_){} }
+  document.addEventListener('visibilitychange',refresh);
+  setInterval(refresh,60000);
+
+  // Date fields: a second click closes the calendar instead of reopening it.
+  ['wDate','pDate'].forEach(id=>{
+    const el=$(id); let open=false, skip=false;
+    el.addEventListener('mousedown',e=>{ if(open){ e.preventDefault(); skip=true; open=false; el.blur(); } });
+    el.addEventListener('click',e=>{
+      if(skip){ e.preventDefault(); skip=false; return; }
+      open=true;
+    });
+    document.addEventListener('pointerdown',e=>{ if(e.target!==el) open=false; },true);
+    ['change','blur'].forEach(t=>el.addEventListener(t,()=>{ open=false; }));
+    el.addEventListener('keydown',e=>{ if(e.key==='Escape'||e.key==='Enter') open=false; });
+  });
+
+  async function start(){
+    $('wDate').value=today(); $('pDate').value=today(); renderItemSelect(); resetWork(); resetPay(); render();
+    $('statusPill').textContent='Loading';
+    if(pin) unlock(pin); else lock('');
+  }
+  start();
+})();
+</script>
+
+</body>
+</html>
