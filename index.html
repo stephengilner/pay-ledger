@@ -500,7 +500,9 @@ body.busy button[type="submit"]{opacity:.6;pointer-events:none}
   // Data lives in the "Video Pay Ledger data" Google Sheet, reached through its Apps Script web app.
   const API='https://script.google.com/macros/s/AKfycbz-0IghvyLWX4xMaPThEUMnW3d8xXIJyVD7dfI1UxVx1_T_-xc1tDCCkMK5lJri86T4TA/exec';
   const PIN_KEY='payLedgerPin';
-  let pin=''; try{ pin=localStorage.getItem(PIN_KEY)||''; }catch(_){}
+  // PIN is kept only for this tab: closing the tab or browser locks the ledger again.
+  try{ localStorage.removeItem(PIN_KEY); }catch(_){}
+  let pin=''; try{ pin=sessionStorage.getItem(PIN_KEY)||''; }catch(_){}
   let busy=0;
   function setBusy(d){ busy+=d; document.body.classList.toggle('busy',busy>0); }
 
@@ -537,14 +539,14 @@ body.busy button[type="submit"]{opacity:.6;pointer-events:none}
   };
 
   function lock(msg){
-    try{ localStorage.removeItem(PIN_KEY); }catch(_){}
+    try{ sessionStorage.removeItem(PIN_KEY); }catch(_){}
     pin=''; $('lockMsg').textContent=msg||''; $('lock').hidden=false; $('app').hidden=true; $('pinInput').value=''; $('pinInput').focus();
   }
   async function unlock(p){
     pin=p; $('lockBtn').disabled=true; $('lockMsg').textContent='Checking…';
     try{
       await api({action:'list'}, true);
-      try{ localStorage.setItem(PIN_KEY,pin); }catch(_){}
+      try{ sessionStorage.setItem(PIN_KEY,pin); }catch(_){}
       $('lock').hidden=true; $('app').hidden=false; banner('');
     }catch(err){ if(err.message!=='pin') $('lockMsg').textContent='Could not reach the ledger. Check your connection and try again.'; }
     finally{ $('lockBtn').disabled=false; }
